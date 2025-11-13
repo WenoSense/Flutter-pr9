@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
-import '../models/payment.dart';
+import '../stores/payment_form_store.dart';
 
 class PaymentFormScreen extends StatefulWidget {
   const PaymentFormScreen({super.key});
@@ -12,45 +12,7 @@ class PaymentFormScreen extends StatefulWidget {
 }
 
 class _PaymentFormScreenState extends State<PaymentFormScreen> {
-  final _titleController = TextEditingController();
-  final _amountController = TextEditingController();
-  final _dateController = TextEditingController();
-
-  String _selectedPeriod = 'Ежемесячно';
-  String _selectedCategory = 'Подписки';
-
-  final List<String> _categories = [
-    'Подписки',
-    'Коммунальные услуги',
-    'Аренда',
-    'Кредиты',
-    'Транспорт',
-    'Связь',
-    'Продукты',
-    'Другое'
-  ];
-
-  void _submit() {
-    final title = _titleController.text.trim();
-    final amount = double.tryParse(_amountController.text) ?? 0;
-
-    if (title.isEmpty || amount <= 0 || _dateController.text.isEmpty) return;
-
-    try {
-      final parsedDate = DateFormat('dd.MM.yyyy').parse(_dateController.text);
-      final payment = Payment(
-        id: DateTime.now().microsecondsSinceEpoch.toString(),
-        title: title,
-        amount: amount,
-        category: _selectedCategory,
-        nextDate: parsedDate,
-        period: _selectedPeriod,
-      );
-      GetIt.I<PaymentRepository>().addPayment(payment);
-    } catch (_) {
-      return;
-    }
-  }
+  final store = GetIt.I<PaymentFormStore>();
 
   @override
   Widget build(BuildContext context) {
@@ -63,55 +25,78 @@ class _PaymentFormScreenState extends State<PaymentFormScreen> {
           onPressed: () => context.pop(),
         ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            TextField(
-              controller: _titleController,
-              decoration: const InputDecoration(labelText: 'Название платежа'),
-            ),
-            TextField(
-              controller: _amountController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Сумма'),
-            ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
-              value: _selectedCategory,
-              items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
-              onChanged: (v) => setState(() => _selectedCategory = v!),
-              decoration: const InputDecoration(labelText: 'Категория'),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _dateController,
-              keyboardType: TextInputType.datetime,
-              decoration: const InputDecoration(
-                labelText: 'Дата следующего платежа (ДД.ММ.ГГГГ)',
+      body: Observer(
+        builder: (_) => Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              TextField(
+                onChanged: store.setTitle,
+                decoration:
+                const InputDecoration(labelText: 'Название платежа'),
               ),
-            ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
-              value: _selectedPeriod,
-              items: const [
-                DropdownMenuItem(value: 'Еженедельно', child: Text('Еженедельно')),
-                DropdownMenuItem(value: 'Ежемесячно', child: Text('Ежемесячно')),
-                DropdownMenuItem(value: 'Ежегодно', child: Text('Ежегодно')),
-              ],
-              onChanged: (v) => setState(() => _selectedPeriod = v!),
-              decoration: const InputDecoration(labelText: 'Периодичность'),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: () {
-                _submit();
-                context.go('/');
-              },
-              style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-              child: const Text('Сохранить'),
-            ),
-          ],
+              TextField(
+                keyboardType:
+                const TextInputType.numberWithOptions(decimal: true),
+                onChanged: store.setAmount,
+                decoration: const InputDecoration(labelText: 'Сумма'),
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: store.category,
+                items: store.categories
+                    .map(
+                      (c) => DropdownMenuItem(
+                    value: c,
+                    child: Text(c),
+                  ),
+                )
+                    .toList(),
+                onChanged: (v) {
+                  if (v != null) store.setCategory(v);
+                },
+                decoration: const InputDecoration(labelText: 'Категория'),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                keyboardType: TextInputType.datetime,
+                onChanged: store.setDate,
+                decoration: const InputDecoration(
+                  labelText: 'Дата следующего платежа (ДД.ММ.ГГГГ)',
+                ),
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: store.period,
+                items: const [
+                  DropdownMenuItem(
+                      value: 'Еженедельно', child: Text('Еженедельно')),
+                  DropdownMenuItem(
+                      value: 'Ежемесячно', child: Text('Ежемесячно')),
+                  DropdownMenuItem(
+                      value: 'Ежегодно', child: Text('Ежегодно')),
+                ],
+                onChanged: (v) {
+                  if (v != null) store.setPeriod(v);
+                },
+                decoration:
+                const InputDecoration(labelText: 'Периодичность'),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: store.isValid
+                      ? () {
+                    store.submit();
+                    context.go('/');
+                  }
+                      : null,
+                  child: const Text('Сохранить'),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
